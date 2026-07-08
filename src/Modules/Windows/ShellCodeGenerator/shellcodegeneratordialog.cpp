@@ -128,27 +128,6 @@ void ShellcodeGeneratorDialog::setupToolbar(QWidget *parent) {
         m_shellcodeStyle->addItem(kStyles[i].label, kStyles[i].id);
     m_toolbarLayout->addWidget(m_shellcodeStyle);
 
-    m_toolbarLayout->addSpacing(12);
-
-    // Toggle checkboxes for panel visibility
-    m_toggleAsm = new QCheckBox(tr("ASM"), parent);
-    m_toggleAsm->setChecked(true);
-    m_toggleAsm->setToolTip(tr("Toggle Assembly panel"));
-    m_toolbarLayout->addWidget(m_toggleAsm);
-    connect(m_toggleAsm, &QCheckBox::toggled, this, &ShellcodeGeneratorDialog::togglePanel);
-
-    m_toggleShell = new QCheckBox(tr("Shell"), parent);
-    m_toggleShell->setChecked(true);
-    m_toggleShell->setToolTip(tr("Toggle Shellcode panel"));
-    m_toolbarLayout->addWidget(m_toggleShell);
-    connect(m_toggleShell, &QCheckBox::toggled, this, &ShellcodeGeneratorDialog::togglePanel);
-
-    m_toggleDisasm = new QCheckBox(tr("Disasm"), parent);
-    m_toggleDisasm->setChecked(true);
-    m_toggleDisasm->setToolTip(tr("Toggle Disassembly panel"));
-    m_toolbarLayout->addWidget(m_toggleDisasm);
-    connect(m_toggleDisasm, &QCheckBox::toggled, this, &ShellcodeGeneratorDialog::togglePanel);
-
     m_toolbarLayout->addStretch(1);
 
     m_byteCountLabel = new QLabel(tr("0 bytes"), parent);
@@ -186,25 +165,16 @@ void ShellcodeGeneratorDialog::setupEditors(QWidget *parent) {
 
     m_splitter->addWidget(makeLabeled(tr("Assembly"), m_asmEditor, m_asmBuffer, m_asmContainer));
     m_splitter->addWidget(makeLabeled(tr("Shellcode"), m_outputEditor, m_outputBuffer, m_shellContainer));
-    m_splitter->addWidget(makeLabeled(tr("Disassembly"), m_disasmEditor, m_disasmBuffer, m_disasmContainer));
 
     m_asmEditor->setFileExt("asm");
     m_outputEditor->setFileExt("cpp");
-    m_disasmEditor->setFileExt("asm");
 
     m_splitter->setStretchFactor(0, 1);
     m_splitter->setStretchFactor(1, 1);
-    m_splitter->setStretchFactor(2, 1);
 }
 
 int ShellcodeGeneratorDialog::currentBits() const {
     return kArchEntries[m_archCombo->currentIndex()].bits;
-}
-
-void ShellcodeGeneratorDialog::togglePanel(int) {
-    m_asmContainer->setVisible(m_toggleAsm->isChecked());
-    m_shellContainer->setVisible(m_toggleShell->isChecked());
-    m_disasmContainer->setVisible(m_toggleDisasm->isChecked());
 }
 
 void ShellcodeGeneratorDialog::onAssemble() {
@@ -212,7 +182,6 @@ void ShellcodeGeneratorDialog::onAssemble() {
 
     if (asmText.isEmpty()) {
         m_outputBuffer->loadData(QByteArray());
-        m_disasmBuffer->loadData(QByteArray());
         m_lastRawBinary.clear();
         m_byteCountLabel->setText(tr("0 bytes"));
         setStatus(tr("Ready."));
@@ -225,7 +194,6 @@ void ShellcodeGeneratorDialog::onAssemble() {
 
     if (!result.error.isEmpty()) {
         m_outputBuffer->loadData(result.error.toUtf8());
-        m_disasmBuffer->loadData(QByteArray());
         m_lastRawBinary.clear();
         m_byteCountLabel->setText(tr("0 bytes"));
         setStatus("Error: " + result.error, true);
@@ -234,7 +202,6 @@ void ShellcodeGeneratorDialog::onAssemble() {
 
     if (result.binary.isEmpty()) {
         m_outputBuffer->loadData(QByteArray());
-        m_disasmBuffer->loadData(QByteArray());
         m_lastRawBinary.clear();
         m_byteCountLabel->setText(tr("0 bytes"));
         setStatus(tr("Assembled 0 bytes."), true);
@@ -257,15 +224,6 @@ void ShellcodeGeneratorDialog::onAssemble() {
 
     m_outputBuffer->loadData(output.toUtf8());
 
-    QString disasmText;
-    for (const auto &l : lines) {
-        disasmText += QStringLiteral("%1  %2  %3\n")
-            .arg(l.offset, 8, 16, QChar('0'))
-            .arg(QString::fromLatin1(l.hexBytes.toHex(' ')).leftJustified(24))
-            .arg(l.mnemonic);
-    }
-    m_disasmBuffer->loadData(disasmText.toUtf8());
-
     setStatus(tr("Assembled %1 bytes successfully.").arg(result.binary.size()));
 }
 
@@ -274,8 +232,6 @@ void ShellcodeGeneratorDialog::onCopyActiveTab() {
 
     if (m_outputEditor->isVisible())
         activeBuffer = m_outputBuffer;
-    else if (m_disasmEditor->isVisible())
-        activeBuffer = m_disasmBuffer;
     else
         activeBuffer = m_asmBuffer;
 
@@ -291,7 +247,6 @@ void ShellcodeGeneratorDialog::onCopyActiveTab() {
 void ShellcodeGeneratorDialog::onClear() {
     m_asmBuffer->loadData(QByteArray());
     m_outputBuffer->loadData(QByteArray());
-    m_disasmBuffer->loadData(QByteArray());
     m_lastRawBinary.clear();
     m_byteCountLabel->setText(tr("0 bytes"));
     setStatus(tr("Ready."));

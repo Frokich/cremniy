@@ -2,7 +2,6 @@
 #define SHELLCODEGENERATORDIALOG_H
 
 #include "core/modules/WindowBase.h"
-#include <QCheckBox>
 #include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -22,7 +21,6 @@ private slots:
     void onAssemble();
     void onCopyActiveTab();
     void onClear();
-    void togglePanel(int index);
 
 private:
     void setupUi();
@@ -40,13 +38,9 @@ private:
     QPushButton *m_clearBtn = nullptr;
 
     QSplitter *m_splitter = nullptr;
-    QCheckBox *m_toggleAsm = nullptr;
-    QCheckBox *m_toggleShell = nullptr;
-    QCheckBox *m_toggleDisasm = nullptr;
 
     QWidget *m_asmContainer = nullptr;
     QWidget *m_shellContainer = nullptr;
-    QWidget *m_disasmContainer = nullptr;
 
     // Assembly input
     FileDataBuffer *m_asmBuffer = nullptr;
@@ -55,10 +49,6 @@ private:
     // Shellcode output
     FileDataBuffer *m_outputBuffer = nullptr;
     CustomCodeEditor *m_outputEditor = nullptr;
-
-    // Disassembly output
-    FileDataBuffer *m_disasmBuffer = nullptr;
-    CustomCodeEditor *m_disasmEditor = nullptr;
 
     QTimer *m_debounceTimer = nullptr;
 
