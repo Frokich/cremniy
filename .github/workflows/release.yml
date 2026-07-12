@@ -74,9 +74,22 @@ jobs:
         if: runner.os != 'Windows'
         env:
           SCCACHE_GHA_ENABLED: "true"
-        # Явно задаем Unix Makefiles, чтобы на macOS не включился Xcode
-        run: cmake -B build -S src -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
-
+        run: |
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            # Говорим линкеру macOS игнорировать отсутствие фреймворка AGL
+            export LDFLAGS="-Wl,-weak_framework,AGL"
+            cmake -B build -S src -G "Unix Makefiles" \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_C_COMPILER_LAUNCHER=sccache \
+              -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
+              -DCMAKE_EXE_LINKER_FLAGS="-Wl,-weak_framework,AGL"
+          else
+            cmake -B build -S src -G "Unix Makefiles" \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_C_COMPILER_LAUNCHER=sccache \
+              -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          fi
+          
       - name: Build
         run: cmake --build build --config Release --parallel
 
