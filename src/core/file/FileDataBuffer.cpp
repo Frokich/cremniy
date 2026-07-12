@@ -143,8 +143,10 @@ void FileDataBuffer::undo()
     const HistoryEntry entry = m_undoStack.takeLast();
     m_redoStack.append(entry);
     applyDataSnapshotLocked(entry.before);
+    const qint64 cursorPos = entry.cursorPosBefore;
     locker.unlock();
     emit dataChanged();
+    emit cursorRestoreRequested(cursorPos);
 }
 
 void FileDataBuffer::redo()
@@ -157,8 +159,10 @@ void FileDataBuffer::redo()
     const HistoryEntry entry = m_redoStack.takeLast();
     m_undoStack.append(entry);
     applyDataSnapshotLocked(entry.after);
+    const qint64 cursorPos = entry.cursorPosAfter;
     locker.unlock();
     emit dataChanged();
+    emit cursorRestoreRequested(cursorPos);
 }
 
 bool FileDataBuffer::canUndo() const
@@ -182,6 +186,15 @@ void FileDataBuffer::beginHistoryGroup()
     m_historyGroupActive = true;
     m_historyGroupBefore.clear();
     m_historyGroupAfter.clear();
+    m_historyGroupCursorBefore = 0;
+    m_historyGroupCursorAfter = 0;
+}
+
+void FileDataBuffer::setPendingCursorPos(qint64 cursorBefore, qint64 cursorAfter)
+{
+    QMutexLocker locker(&m_mutex);
+    m_pendingCursorBefore = cursorBefore;
+    m_pendingCursorAfter = cursorAfter;
 }
 
 void FileDataBuffer::endHistoryGroup()
@@ -196,7 +209,8 @@ void FileDataBuffer::endHistoryGroupLocked()
         return;
 
     if (!m_historyGroupBefore.isEmpty() || !m_historyGroupAfter.isEmpty()) {
-        m_undoStack.append({m_historyGroupBefore, m_historyGroupAfter});
+        m_undoStack.append({m_historyGroupBefore, m_historyGroupAfter,
+                            m_historyGroupCursorBefore, m_historyGroupCursorAfter});
         if (m_undoStack.size() > m_maxHistoryEntries)
             m_undoStack.remove(0, m_undoStack.size() - m_maxHistoryEntries);
         m_redoStack.clear();
@@ -205,6 +219,8 @@ void FileDataBuffer::endHistoryGroupLocked()
     m_historyGroupActive = false;
     m_historyGroupBefore.clear();
     m_historyGroupAfter.clear();
+    m_historyGroupCursorBefore = 0;
+    m_historyGroupCursorAfter = 0;
 }
 
 void FileDataBuffer::setByte(qint64 pos, char byte)
@@ -579,14 +595,21 @@ void FileDataBuffer::applyDataSnapshotLocked(const QByteArray& data)
 void FileDataBuffer::pushHistoryLocked(const QByteArray& before, const QByteArray& after)
 {
     if (m_historyGroupActive) {
-        if (m_historyGroupBefore.isEmpty() && m_historyGroupAfter.isEmpty())
+        if (m_historyGroupBefore.isEmpty() && m_historyGroupAfter.isEmpty()) {
             m_historyGroupBefore = before;
+            m_historyGroupCursorBefore = m_pendingCursorBefore;
+        }
         m_historyGroupAfter = after;
+        m_historyGroupCursorAfter = m_pendingCursorAfter;
+        m_pendingCursorBefore = 0;
+        m_pendingCursorAfter = 0;
         m_redoStack.clear();
         return;
     }
 
-    m_undoStack.append({before, after});
+    m_undoStack.append({before, after, m_pendingCursorBefore, m_pendingCursorAfter});
+    m_pendingCursorBefore = 0;
+    m_pendingCursorAfter = 0;
     if (m_undoStack.size() > m_maxHistoryEntries)
         m_undoStack.remove(0, m_undoStack.size() - m_maxHistoryEntries);
     m_redoStack.clear();

@@ -576,6 +576,14 @@ void CustomCodeEditor::setBuffer(FileDataBuffer* buffer)
     connect(m_buffer, &FileDataBuffer::bytesChanged, this, &CustomCodeEditor::onBufferBytesChanged);
     connect(m_buffer, &FileDataBuffer::dataChanged, this, &CustomCodeEditor::onBufferDataChanged);
     connect(m_buffer, &FileDataBuffer::selectionChanged, this, &CustomCodeEditor::onBufferSelectionChanged);
+    connect(m_buffer, &FileDataBuffer::cursorRestoreRequested, this, [this](qint64 pos) {
+        m_cursorBytePos = pos;
+        clampCursorToBuffer();
+        ensureCursorVisible();
+        emit cursorPositionChanged();
+        viewport()->update();
+        m_lineNumberArea->update();
+    });
 
     buildLineIndex();
     m_cursorBytePos = firstTextByte();
@@ -1178,7 +1186,7 @@ void CustomCodeEditor::keyPressEvent(QKeyEvent* event)
     }
     const QString text = event->text();
     if (text == QStringLiteral(" ") && !event->modifiers().testFlag(Qt::ControlModifier)) {
-        beginEditGrouping(EditGroupTyping);
+        endEditGrouping();
         if (kLogInputEvents)
             qDebug() << "[CustomCodeEditor][keyPressEvent] action=InsertSpaceByText";
         insertText(text);
@@ -1195,7 +1203,7 @@ void CustomCodeEditor::keyPressEvent(QKeyEvent* event)
         event->accept();
         return;
     case Qt::Key_Space:
-        beginEditGrouping(EditGroupTyping);
+        endEditGrouping();
         if (kLogInputEvents)
             qDebug() << "[CustomCodeEditor][keyPressEvent] action=InsertSpaceByKey";
         insertText(QStringLiteral(" "));
@@ -1254,7 +1262,7 @@ void CustomCodeEditor::keyPressEvent(QKeyEvent* event)
     }
 
     if (!text.isEmpty() && !event->modifiers().testFlag(Qt::ControlModifier) && text.front().isPrint()) {
-        beginEditGrouping(EditGroupTyping);
+        endEditGrouping();
         if (kLogInputEvents)
             qDebug().noquote() << QStringLiteral("[CustomCodeEditor][keyPressEvent] action=InsertPrintable text='%1'").arg(text);
         insertText(text);
@@ -1564,11 +1572,6 @@ void CustomCodeEditor::onBufferDataChanged()
 void CustomCodeEditor::onBufferSelectionChanged(qint64 pos, qint64 length)
 {
     if (m_updatingSelection)
-        return;
-
-    // Ignore zero-length selection echoes while this editor is actively
-    // applying its own edit; other views may still be catching up.
-    if (m_applyingBufferEdit && length == 0)
         return;
 
     updateSelection(pos, length);
@@ -3003,11 +3006,13 @@ void CustomCodeEditor::replaceRange(qint64 start, qint64 length, const QByteArra
 
     logEditRange("replaceRange", start, length, removedBytes, replacement);
 
+    const qint64 oldCursorBytePos = m_cursorBytePos;
     m_cursorBytePos = start + replacement.size();
     m_selectionStart = m_cursorBytePos;
     m_selectionLength = 0;
     m_selectionAnchor = -1;
 
+    m_buffer->setPendingCursorPos(oldCursorBytePos, m_cursorBytePos);
     m_applyingBufferEdit = true;
     if (length == 0) {
         m_buffer->insertBytes(start, replacement);
