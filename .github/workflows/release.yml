@@ -76,13 +76,15 @@ jobs:
           SCCACHE_GHA_ENABLED: "true"
         run: |
           if [ "${{ runner.os }}" = "macOS" ]; then
-            # Говорим линкеру macOS игнорировать отсутствие фреймворка AGL
-            export LDFLAGS="-Wl,-weak_framework,AGL"
+            # Передаем флаги во ВСЕ внутренние тесты компилятора CMake
             cmake -B build -S src -G "Unix Makefiles" \
               -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_C_COMPILER_LAUNCHER=sccache \
               -DCMAKE_CXX_COMPILER_LAUNCHER=sccache \
-              -DCMAKE_EXE_LINKER_FLAGS="-Wl,-weak_framework,AGL"
+              -DCMAKE_EXE_LINKER_FLAGS="-Wl,-weak_framework,AGL" \
+              -DCMAKE_SHARED_LINKER_FLAGS="-Wl,-weak_framework,AGL" \
+              -DCMAKE_MODULE_LINKER_FLAGS="-Wl,-weak_framework,AGL" \
+              -DCMAKE_REQUIRED_FLAGS="-Wl,-weak_framework,AGL"
           else
             cmake -B build -S src -G "Unix Makefiles" \
               -DCMAKE_BUILD_TYPE=Release \
