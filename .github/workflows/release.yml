@@ -149,6 +149,62 @@ jobs:
             cremniy-macos-${{ github.ref_name }}.tar.gz
           if-no-files-found: error
 
+    build-rpm:
+    name: Build RPM (Fedora)
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:41
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          dnf install -y \
+            rpm-build rpmdevtools git tar rsync \
+            cmake gcc-c++ \
+            qt6-qtbase-devel qt6-qttools-devel qt6-qtsvg-devel \
+            desktop-file-utils
+
+      - name: Setup rpmbuild tree
+        run: rpmdev-setuptree
+
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/^Version:.*/Version:        ${TAG_VERSION}/" rpm/cremniy.spec
+          echo "version=${TAG_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Build source tarball
+        run: |
+          STAGE_DIR="$(mktemp -d)/cremniy"
+          mkdir -p "$STAGE_DIR"
+          rsync -a --exclude='.git' ./ "$STAGE_DIR/"
+          tar -C "$(dirname "$STAGE_DIR")" -czf \
+            "$HOME/rpmbuild/SOURCES/cremniy-${{ env.version }}.tar.gz" cremniy
+
+      - name: Copy spec file
+        run: cp rpm/cremniy.spec "$HOME/rpmbuild/SPECS/"
+
+      - name: Build RPM
+        run: rpmbuild -ba "$HOME/rpmbuild/SPECS/cremniy.spec"
+
+      - name: Rename RPMs for clarity
+        run: |
+          mkdir -p dist
+          find "$HOME/rpmbuild/RPMS" -name '*.rpm' -exec cp {} dist/ \;
+          find "$HOME/rpmbuild/SRPMS" -name '*.rpm' -exec cp {} dist/ \;
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: cremniy-rpm-${{ github.ref_name }}
+          path: dist/*.rpm
+          if-no-files-found: error
+
   release:
     name: Create Release
     needs: build
